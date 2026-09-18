@@ -184,8 +184,12 @@ fun AboutScreen(
                                 val info = checkResult.getOrNull()
                                 if (info != null) {
                                     updateInfo = info
-                                    downloadState = UpdateDownloadState.Idle
-                                    showUpdateModal = true
+                                    if (info.hasUpdate) {
+                                        downloadState = UpdateDownloadState.Idle
+                                        showUpdateModal = true
+                                    } else {
+                                        Toast.makeText(context, strings.noUpdateAvailable, Toast.LENGTH_LONG).show()
+                                    }
                                 } else {
                                     Toast.makeText(context, strings.updateError, Toast.LENGTH_SHORT).show()
                                 }
@@ -512,12 +516,7 @@ fun AboutScreen(
             )
             Spacer(modifier = Modifier.height(12.dp))
             Text(
-                text = "• Clear Glass iOS-inspired keyboard aesthetic without blur lag\n" +
-                        "• Multi-architecture Nightly updater with automatic zip extraction & APK installation\n" +
-                        "• Complete Indonesian (Bahasa Indonesia) language localization\n" +
-                        "• 60/120fps fluid spring transitions with tactile micro-interactions\n" +
-                        "• Full Personal Dictionary whitelist & predictive text bar\n" +
-                        "• Zero telemetry, 100% on-device private processing",
+                text = strings.whatsNewText,
                 style = HIGTheme.typography.footnote,
                 color = colors.secondaryLabel,
                 lineHeight = 20.sp
@@ -544,10 +543,7 @@ fun AboutScreen(
             )
             Spacer(modifier = Modifier.height(12.dp))
             Text(
-                text = "KeyGlass is engineered with strict privacy-by-design principles:\n\n" +
-                        "1. Zero Telemetry: No keystrokes, personal dictionary entries, or typing telemetry are ever recorded or transmitted.\n\n" +
-                        "2. Local Processing: All predictive text algorithms (Levenshtein, Trie prefix matching, bigrams) run completely in local device memory.\n\n" +
-                        "3. Password Isolation: In password fields, all suggestion bars, autocorrect replacements, and clipboard chips are automatically disabled.",
+                text = strings.privacyPromiseText,
                 style = HIGTheme.typography.footnote,
                 color = colors.secondaryLabel,
                 lineHeight = 19.sp

@@ -42,7 +42,8 @@ data class NightlyUpdateInfo(
     val targetAbi: String,
     val versionLabel: String,
     val runNumber: String,
-    val isDirectApk: Boolean
+    val isDirectApk: Boolean,
+    val hasUpdate: Boolean = true
 )
 
 sealed class UpdateDownloadState {
@@ -246,16 +247,17 @@ class GitHubRepository {
                 }
             }
 
-            // Fallback information linking to GitHub Actions
+            // Fallback information indicating already on latest version
             Result.success(
                 NightlyUpdateInfo(
-                    artifactName = "KeyGlass Nightly ($currentAbi)",
+                    artifactName = "KeyGlass ($currentAbi)",
                     downloadUrl = actionsUrl,
                     htmlUrl = actionsUrl,
                     targetAbi = currentAbi,
-                    versionLabel = "Latest Nightly",
-                    runNumber = "Actions",
-                    isDirectApk = false
+                    versionLabel = "v1.0.0",
+                    runNumber = "Latest",
+                    isDirectApk = false,
+                    hasUpdate = false
                 )
             )
         } catch (e: Exception) {

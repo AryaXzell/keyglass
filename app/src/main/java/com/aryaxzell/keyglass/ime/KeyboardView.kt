@@ -71,8 +71,10 @@ import com.aryaxzell.keyglass.data.datastore.FontSource
 import com.aryaxzell.keyglass.data.datastore.KeyGlassSettings
 import com.aryaxzell.keyglass.data.engine.SuggestionCandidate
 import com.aryaxzell.keyglass.ui.theme.HIGTheme
+import com.aryaxzell.keyglass.ui.theme.KeyGlassKeyboardTheme
 import com.aryaxzell.keyglass.ui.theme.KeyGlassTheme
 import com.aryaxzell.keyglass.ui.theme.parseHexColor
+import androidx.compose.foundation.border
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -101,10 +103,8 @@ fun KeyboardView(
     onKeyFeedback: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    KeyGlassTheme(
-        themeMode = settings.themeMode,
-        accentColorHex = settings.accentColorHex,
-        fontSource = settings.fontSource
+    KeyGlassKeyboardTheme(
+        settings = settings
     ) {
         val colors = HIGTheme.colors
         val cornerRadius = settings.keyCornerRadiusDp.dp
@@ -907,6 +907,7 @@ private fun KeyboardKey(
             .height(height)
             .scale(pressScale)
             .shadow(elevation = 1.dp, shape = RoundedCornerShape(cornerRadius), ambientColor = colors.keyShadow)
+            .border(width = 1.dp, color = colors.keyBorder, shape = RoundedCornerShape(cornerRadius))
             .clip(RoundedCornerShape(cornerRadius))
             .background(bgColor)
             .pointerInput(label, longPressVariants) {
@@ -968,6 +969,7 @@ private fun FunctionKey(
             .height(height)
             .scale(pressScale)
             .shadow(elevation = 1.dp, shape = RoundedCornerShape(cornerRadius), ambientColor = colors.keyShadow)
+            .border(width = 1.dp, color = colors.keyBorder, shape = RoundedCornerShape(cornerRadius))
             .clip(RoundedCornerShape(cornerRadius))
             .background(bgColor)
             .pointerInput(Unit) {
@@ -1030,6 +1032,7 @@ private fun ShiftKey(
             .height(height)
             .scale(pressScale)
             .shadow(elevation = 1.dp, shape = RoundedCornerShape(cornerRadius), ambientColor = colors.keyShadow)
+            .border(width = 1.dp, color = colors.keyBorder, shape = RoundedCornerShape(cornerRadius))
             .clip(RoundedCornerShape(cornerRadius))
             .background(bgColor)
             .pointerInput(Unit) {
@@ -1095,6 +1098,7 @@ private fun BackspaceKey(
             .height(height)
             .scale(pressScale)
             .shadow(elevation = 1.dp, shape = RoundedCornerShape(cornerRadius), ambientColor = colors.keyShadow)
+            .border(width = 1.dp, color = colors.keyBorder, shape = RoundedCornerShape(cornerRadius))
             .clip(RoundedCornerShape(cornerRadius))
             .background(bgColor)
             .pointerInput(Unit) {
@@ -1163,6 +1167,7 @@ private fun SpaceBarKey(
             .height(height)
             .scale(pressScale)
             .shadow(elevation = 1.dp, shape = RoundedCornerShape(cornerRadius), ambientColor = colors.keyShadow)
+            .border(width = 1.dp, color = colors.keyBorder, shape = RoundedCornerShape(cornerRadius))
             .clip(RoundedCornerShape(cornerRadius))
             .background(bgColor)
             .pointerInput(sensitivity) {
@@ -1246,6 +1251,7 @@ private fun ReturnKey(
             .height(height)
             .scale(pressScale)
             .shadow(elevation = 1.dp, shape = RoundedCornerShape(cornerRadius), ambientColor = colors.keyShadow)
+            .border(width = 1.dp, color = colors.keyBorder, shape = RoundedCornerShape(cornerRadius))
             .clip(RoundedCornerShape(cornerRadius))
             .background(bgColor)
             .pointerInput(Unit) {
@@ -1298,6 +1304,7 @@ private fun GlobeKey(
             .height(height)
             .scale(pressScale)
             .shadow(elevation = 1.dp, shape = RoundedCornerShape(cornerRadius), ambientColor = colors.keyShadow)
+            .border(width = 1.dp, color = colors.keyBorder, shape = RoundedCornerShape(cornerRadius))
             .clip(RoundedCornerShape(cornerRadius))
             .background(bgColor)
             .pointerInput(Unit) {
@@ -1346,6 +1353,7 @@ private fun EmojiKeyButton(
             .height(height)
             .scale(pressScale)
             .shadow(elevation = 1.dp, shape = RoundedCornerShape(cornerRadius), ambientColor = colors.keyShadow)
+            .border(width = 1.dp, color = colors.keyBorder, shape = RoundedCornerShape(cornerRadius))
             .clip(RoundedCornerShape(cornerRadius))
             .background(bgColor)
             .pointerInput(Unit) {

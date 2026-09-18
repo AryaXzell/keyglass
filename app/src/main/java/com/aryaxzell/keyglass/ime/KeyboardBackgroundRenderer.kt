@@ -36,7 +36,7 @@ fun KeyboardBackgroundRenderer(
 ) {
     val colors = HIGTheme.colors
 
-    Box(modifier = modifier.fillMaxSize()) {
+    Box(modifier = modifier) {
         // 1. Base Wallpaper / Theme Render
         when (settings.backgroundType) {
             KeyboardBackgroundType.CUSTOM_IMAGE -> {

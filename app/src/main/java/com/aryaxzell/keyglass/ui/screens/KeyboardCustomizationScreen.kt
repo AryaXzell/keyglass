@@ -57,6 +57,7 @@ import coil.compose.AsyncImage
 import com.aryaxzell.keyglass.data.datastore.KeyboardBackgroundType
 import com.aryaxzell.keyglass.data.datastore.KeyboardPresetTheme
 import com.aryaxzell.keyglass.data.datastore.KeyGlassSettings
+import com.aryaxzell.keyglass.data.datastore.KeyToneStyle
 import com.aryaxzell.keyglass.data.datastore.PreferencesRepository
 import com.aryaxzell.keyglass.ime.AlphaKeyboardLayout
 import com.aryaxzell.keyglass.ime.KeyboardBackgroundRenderer
@@ -67,10 +68,13 @@ import com.aryaxzell.keyglass.ui.components.HIGCheckmarkIcon
 import com.aryaxzell.keyglass.ui.components.HIGGroupedSection
 import com.aryaxzell.keyglass.ui.components.HIGNavBar
 import com.aryaxzell.keyglass.ui.components.HIGPhotoIcon
+import com.aryaxzell.keyglass.ui.components.HIGSegmentedControl
 import com.aryaxzell.keyglass.ui.components.HIGSlider
 import com.aryaxzell.keyglass.ui.components.HIGSparklesIcon
+import com.aryaxzell.keyglass.ui.components.HIGSwitch
 import com.aryaxzell.keyglass.ui.localization.LocalStrings
 import com.aryaxzell.keyglass.ui.theme.HIGTheme
+import com.aryaxzell.keyglass.ui.theme.KeyGlassKeyboardTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -97,18 +101,28 @@ fun KeyboardCustomizationScreen(
     var previewPresetTheme by remember(settings.presetTheme) { mutableStateOf(settings.presetTheme) }
     var previewCustomPath by remember(settings.customBackgroundPath) { mutableStateOf(settings.customBackgroundPath) }
     var previewOverlayDim by remember(settings.backgroundOverlayDim) { mutableFloatStateOf(settings.backgroundOverlayDim) }
+    var previewKeyOpacity by remember(settings.keyOpacity) { mutableFloatStateOf(settings.keyOpacity) }
+    var previewKeyToneStyle by remember(settings.keyToneStyle) { mutableStateOf(settings.keyToneStyle) }
+    var previewKeyBorderEnabled by remember(settings.keyBorderEnabled) { mutableStateOf(settings.keyBorderEnabled) }
+    var previewTestInputText by remember { mutableStateOf("") }
 
     // Shift state and key feedback for interactive real-time preview keyboard
     var previewShiftState by remember { mutableStateOf(ShiftState.SHIFT_ONCE) }
     var showSavedBanner by remember { mutableStateOf(false) }
 
     // Custom preview settings instance for live rendering
-    val livePreviewSettings = remember(settings, previewBackgroundType, previewPresetTheme, previewCustomPath, previewOverlayDim) {
+    val livePreviewSettings = remember(
+        settings, previewBackgroundType, previewPresetTheme, previewCustomPath,
+        previewOverlayDim, previewKeyOpacity, previewKeyToneStyle, previewKeyBorderEnabled
+    ) {
         settings.copy(
             backgroundType = previewBackgroundType,
             presetTheme = previewPresetTheme,
             customBackgroundPath = previewCustomPath,
-            backgroundOverlayDim = previewOverlayDim
+            backgroundOverlayDim = previewOverlayDim,
+            keyOpacity = previewKeyOpacity,
+            keyToneStyle = previewKeyToneStyle,
+            keyBorderEnabled = previewKeyBorderEnabled
         )
     }
 
@@ -122,6 +136,7 @@ fun KeyboardCustomizationScreen(
                 if (savedPath != null) {
                     previewCustomPath = savedPath
                     previewBackgroundType = KeyboardBackgroundType.CUSTOM_IMAGE
+                    previewKeyToneStyle = KeyToneStyle.AUTO_ADAPTIVE
                 }
             }
         }
@@ -192,51 +207,77 @@ fun KeyboardCustomizationScreen(
 
                     Spacer(modifier = Modifier.height(6.dp))
 
-                    // Keyboard Live Box
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp))
-                            .shadow(elevation = 2.dp, shape = RoundedCornerShape(12.dp))
-                    ) {
-                        // Render full live keyboard view layout
+                    // Keyboard Live Box wrapped in dynamic live preview theme
+                    KeyGlassKeyboardTheme(settings = livePreviewSettings) {
+                        val keyboardThemeColors = HIGTheme.colors
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(bottom = 6.dp)
+                                .shadow(elevation = 6.dp, shape = RoundedCornerShape(16.dp))
+                                .clip(RoundedCornerShape(16.dp))
+                                .background(keyboardThemeColors.groupedCard)
+                                .border(1.5.dp, colors.separator.copy(alpha = 0.4f), RoundedCornerShape(16.dp))
                         ) {
-                            // Background renderer
-                            KeyboardBackgroundRenderer(settings = livePreviewSettings)
+                            Column(modifier = Modifier.fillMaxWidth()) {
+                                // Live Interactive Preview Test Input Line
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .background(keyboardThemeColors.keyboardBackground.copy(alpha = 0.85f))
+                                        .padding(horizontal = 14.dp, vertical = 10.dp)
+                                ) {
+                                    Text(
+                                        text = if (previewTestInputText.isEmpty()) strings.testKeyboardInputPlaceholder else previewTestInputText,
+                                        style = HIGTheme.typography.body,
+                                        color = if (previewTestInputText.isEmpty()) keyboardThemeColors.tertiaryLabel else keyboardThemeColors.primaryLabel,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
 
-                            // Interactive Alpha keys preview
-                            AlphaKeyboardLayout(
-                                settings = livePreviewSettings,
-                                shiftState = previewShiftState,
-                                cornerRadius = livePreviewSettings.keyCornerRadiusDp.dp,
-                                enterLabel = "return",
-                                onCharTyped = { /* preview interaction */ },
-                                onBackspace = { /* preview interaction */ },
-                                onSpace = { /* preview interaction */ },
-                                onEnter = { /* preview interaction */ },
-                                onShiftClick = {
-                                    previewShiftState = when (previewShiftState) {
-                                        ShiftState.LOWERCASE -> ShiftState.SHIFT_ONCE
-                                        ShiftState.SHIFT_ONCE -> ShiftState.LOWERCASE
-                                        ShiftState.CAPS_LOCK -> ShiftState.LOWERCASE
-                                    }
-                                },
-                                onShiftDoubleClick = { previewShiftState = ShiftState.CAPS_LOCK },
-                                onSwitchToSymbols = {},
-                                onSwitchToEmoji = {},
-                                onLanguageSwitch = {},
-                                onKeyFeedback = {},
-                                onCursorMoved = {},
-                                onShowPopup = { _, _ -> },
-                                onDismissPopup = {},
-                                onShowAccents = { _, _ -> },
-                                onAccentSelected = {},
-                                onDismissAccents = {}
-                            )
+                                // Render full live keyboard view layout
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(bottom = 6.dp)
+                                ) {
+                                    // Background renderer matching EXACT parent size
+                                    KeyboardBackgroundRenderer(
+                                        settings = livePreviewSettings,
+                                        modifier = Modifier.matchParentSize()
+                                    )
+
+                                    // Interactive Alpha keys preview
+                                    AlphaKeyboardLayout(
+                                        settings = livePreviewSettings,
+                                        shiftState = previewShiftState,
+                                        cornerRadius = livePreviewSettings.keyCornerRadiusDp.dp,
+                                        enterLabel = "return",
+                                        onCharTyped = { char -> previewTestInputText += char },
+                                        onBackspace = { if (previewTestInputText.isNotEmpty()) previewTestInputText = previewTestInputText.dropLast(1) },
+                                        onSpace = { previewTestInputText += " " },
+                                        onEnter = { previewTestInputText += "\n" },
+                                        onShiftClick = {
+                                            previewShiftState = when (previewShiftState) {
+                                                ShiftState.LOWERCASE -> ShiftState.SHIFT_ONCE
+                                                ShiftState.SHIFT_ONCE -> ShiftState.LOWERCASE
+                                                ShiftState.CAPS_LOCK -> ShiftState.LOWERCASE
+                                            }
+                                        },
+                                        onShiftDoubleClick = { previewShiftState = ShiftState.CAPS_LOCK },
+                                        onSwitchToSymbols = {},
+                                        onSwitchToEmoji = {},
+                                        onLanguageSwitch = {},
+                                        onKeyFeedback = {},
+                                        onCursorMoved = {},
+                                        onShowPopup = { _, _ -> },
+                                        onDismissPopup = {},
+                                        onShowAccents = { _, _ -> },
+                                        onAccentSelected = {},
+                                        onDismissAccents = {}
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -288,6 +329,116 @@ fun KeyboardCustomizationScreen(
                     ) {
                         Text(text = "0%", style = HIGTheme.typography.caption2, color = colors.secondaryLabel)
                         Text(text = "85%", style = HIGTheme.typography.caption2, color = colors.secondaryLabel)
+                    }
+                }
+            }
+
+            // 2b. Key Transparency & Tone Customization
+            HIGGroupedSection(
+                header = strings.keyTransparencyHeader,
+                footer = strings.keyTransparencyDesc,
+                staggerIndex = 2
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp)
+                ) {
+                    // Opacity Slider
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Opasitas Tombol: ${(previewKeyOpacity * 100).roundToInt()}%",
+                            style = HIGTheme.typography.body.copy(fontWeight = FontWeight.Medium),
+                            color = colors.primaryLabel
+                        )
+
+                        Text(
+                            text = if (previewKeyOpacity < 0.25f) "Kaca Transparan" else if (previewKeyOpacity > 0.8f) "Pekat (Solid)" else "Kaca Halus",
+                            style = HIGTheme.typography.footnote,
+                            color = colors.secondaryLabel
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    HIGSlider(
+                        value = previewKeyOpacity,
+                        onValueChange = { previewKeyOpacity = it },
+                        valueRange = 0.05f..1.0f,
+                        steps = 19
+                    )
+
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(text = "5% (Bening)", style = HIGTheme.typography.caption2, color = colors.secondaryLabel)
+                        Text(text = "100% (Solid)", style = HIGTheme.typography.caption2, color = colors.secondaryLabel)
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // Key Tone Style
+                    Text(
+                        text = strings.keyToneHeader,
+                        style = HIGTheme.typography.subhead.copy(fontWeight = FontWeight.SemiBold),
+                        color = colors.primaryLabel
+                    )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    val toneStyles = listOf(
+                        KeyToneStyle.AUTO_ADAPTIVE,
+                        KeyToneStyle.GLASS_DARK,
+                        KeyToneStyle.GLASS_LIGHT,
+                        KeyToneStyle.ACCENT_TINT
+                    )
+
+                    HIGSegmentedControl(
+                        items = toneStyles,
+                        selectedItem = previewKeyToneStyle,
+                        onItemSelected = { previewKeyToneStyle = it },
+                        labelProvider = { tone ->
+                            when (tone) {
+                                KeyToneStyle.AUTO_ADAPTIVE -> strings.keyToneAdaptive
+                                KeyToneStyle.GLASS_DARK -> strings.keyToneGlassDark
+                                KeyToneStyle.GLASS_LIGHT -> strings.keyToneGlassLight
+                                KeyToneStyle.ACCENT_TINT -> strings.keyToneAccent
+                            }
+                        }
+                    )
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // Border Toggle
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = strings.keyBorderToggle,
+                                style = HIGTheme.typography.body.copy(fontWeight = FontWeight.Medium),
+                                color = colors.primaryLabel
+                            )
+                            Text(
+                                text = strings.keyBorderToggleDesc,
+                                style = HIGTheme.typography.footnote,
+                                color = colors.secondaryLabel
+                            )
+                        }
+
+                        HIGSwitch(
+                            checked = previewKeyBorderEnabled,
+                            onCheckedChange = { previewKeyBorderEnabled = it }
+                        )
                     }
                 }
             }
@@ -423,6 +574,7 @@ fun KeyboardCustomizationScreen(
                                     onClick = {
                                         previewBackgroundType = KeyboardBackgroundType.PRESET
                                         previewPresetTheme = preset
+                                        previewKeyToneStyle = KeyToneStyle.AUTO_ADAPTIVE
                                     },
                                     modifier = Modifier.weight(1f)
                                 )
@@ -481,7 +633,10 @@ fun KeyboardCustomizationScreen(
                                 type = previewBackgroundType,
                                 preset = previewPresetTheme,
                                 customPath = previewCustomPath,
-                                dim = previewOverlayDim
+                                dim = previewOverlayDim,
+                                keyOpacity = previewKeyOpacity,
+                                keyToneStyle = previewKeyToneStyle,
+                                keyBorderEnabled = previewKeyBorderEnabled
                             )
                             showSavedBanner = true
                             Toast.makeText(context, strings.themeAppliedSuccess, Toast.LENGTH_SHORT).show()
@@ -498,12 +653,18 @@ fun KeyboardCustomizationScreen(
                         previewPresetTheme = KeyboardPresetTheme.GLASS_DARK
                         previewOverlayDim = 0.35f
                         previewCustomPath = ""
+                        previewKeyOpacity = 0.55f
+                        previewKeyToneStyle = KeyToneStyle.AUTO_ADAPTIVE
+                        previewKeyBorderEnabled = true
                         scope.launch {
                             preferencesRepository.updateKeyboardBackgroundConfig(
                                 type = KeyboardBackgroundType.PRESET,
                                 preset = KeyboardPresetTheme.GLASS_DARK,
                                 customPath = "",
-                                dim = 0.35f
+                                dim = 0.35f,
+                                keyOpacity = 0.55f,
+                                keyToneStyle = KeyToneStyle.AUTO_ADAPTIVE,
+                                keyBorderEnabled = true
                             )
                             showSavedBanner = true
                         }

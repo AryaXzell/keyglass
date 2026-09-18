@@ -43,6 +43,13 @@ enum class KeyboardPresetTheme {
     PASTEL_BLOOM
 }
 
+enum class KeyToneStyle {
+    AUTO_ADAPTIVE,
+    GLASS_DARK,
+    GLASS_LIGHT,
+    ACCENT_TINT
+}
+
 data class KeyGlassSettings(
     val themeMode: ThemeMode = ThemeMode.DARK,
     val keyCornerRadiusDp: Float = 5f,
@@ -52,6 +59,10 @@ data class KeyGlassSettings(
     val presetTheme: KeyboardPresetTheme = KeyboardPresetTheme.GLASS_DARK,
     val customBackgroundPath: String = "",
     val backgroundOverlayDim: Float = 0.35f,
+    val keyOpacity: Float = 0.55f, // 0.05f (crystal clear glass) to 1.0f (solid)
+    val keyToneStyle: KeyToneStyle = KeyToneStyle.AUTO_ADAPTIVE,
+    val keyBorderEnabled: Boolean = true,
+    val customKeyColorHex: String = "#007AFF",
     val appLanguage: String = "system", // "system", "en", "in"
     val typoCorrectionEnabled: Boolean = true,
     val predictiveTextEnabled: Boolean = true,
@@ -66,7 +77,8 @@ data class KeyGlassSettings(
     val spaceBarCursorSensitivity: Float = 1.0f,
     val longPressDurationMs: Long = 400L,
     val batteryReminderDismissCount: Int = 0,
-    val onboardingCompleted: Boolean = false
+    val onboardingCompleted: Boolean = false,
+    val temporaryDisabled: Boolean = false
 )
 
 object PreferenceKeys {
@@ -78,6 +90,10 @@ object PreferenceKeys {
     val PRESET_THEME = stringPreferencesKey("preset_theme")
     val CUSTOM_BACKGROUND_PATH = stringPreferencesKey("custom_background_path")
     val BACKGROUND_OVERLAY_DIM = floatPreferencesKey("background_overlay_dim")
+    val KEY_OPACITY = floatPreferencesKey("key_opacity")
+    val KEY_TONE_STYLE = stringPreferencesKey("key_tone_style")
+    val KEY_BORDER_ENABLED = booleanPreferencesKey("key_border_enabled")
+    val CUSTOM_KEY_COLOR_HEX = stringPreferencesKey("custom_key_color_hex")
     val APP_LANGUAGE = stringPreferencesKey("app_language")
     val TYPO_CORRECTION = booleanPreferencesKey("typo_correction")
     val PREDICTIVE_TEXT = booleanPreferencesKey("predictive_text")
@@ -93,6 +109,7 @@ object PreferenceKeys {
     val LONG_PRESS_DURATION = longPreferencesKey("long_press_duration")
     val BATTERY_REMINDER_COUNT = intPreferencesKey("battery_reminder_count")
     val ONBOARDING_COMPLETED = booleanPreferencesKey("onboarding_completed")
+    val TEMPORARY_DISABLED = booleanPreferencesKey("temporary_disabled")
 }
 
 class PreferencesRepository(private val context: Context) {
@@ -114,6 +131,14 @@ class PreferencesRepository(private val context: Context) {
             },
             customBackgroundPath = prefs[PreferenceKeys.CUSTOM_BACKGROUND_PATH] ?: "",
             backgroundOverlayDim = prefs[PreferenceKeys.BACKGROUND_OVERLAY_DIM] ?: 0.35f,
+            keyOpacity = prefs[PreferenceKeys.KEY_OPACITY] ?: 0.55f,
+            keyToneStyle = try {
+                KeyToneStyle.valueOf(prefs[PreferenceKeys.KEY_TONE_STYLE] ?: KeyToneStyle.AUTO_ADAPTIVE.name)
+            } catch (e: Exception) {
+                KeyToneStyle.AUTO_ADAPTIVE
+            },
+            keyBorderEnabled = prefs[PreferenceKeys.KEY_BORDER_ENABLED] ?: true,
+            customKeyColorHex = prefs[PreferenceKeys.CUSTOM_KEY_COLOR_HEX] ?: "#007AFF",
             appLanguage = prefs[PreferenceKeys.APP_LANGUAGE] ?: "system",
             typoCorrectionEnabled = prefs[PreferenceKeys.TYPO_CORRECTION] ?: true,
             predictiveTextEnabled = prefs[PreferenceKeys.PREDICTIVE_TEXT] ?: true,
@@ -128,7 +153,8 @@ class PreferencesRepository(private val context: Context) {
             spaceBarCursorSensitivity = prefs[PreferenceKeys.SPACE_BAR_SENSITIVITY] ?: 1.0f,
             longPressDurationMs = prefs[PreferenceKeys.LONG_PRESS_DURATION] ?: 400L,
             batteryReminderDismissCount = prefs[PreferenceKeys.BATTERY_REMINDER_COUNT] ?: 0,
-            onboardingCompleted = prefs[PreferenceKeys.ONBOARDING_COMPLETED] ?: false
+            onboardingCompleted = prefs[PreferenceKeys.ONBOARDING_COMPLETED] ?: false,
+            temporaryDisabled = prefs[PreferenceKeys.TEMPORARY_DISABLED] ?: false
         )
     }
 
@@ -164,17 +190,39 @@ class PreferencesRepository(private val context: Context) {
         context.dataStore.edit { it[PreferenceKeys.BACKGROUND_OVERLAY_DIM] = dim }
     }
 
+    suspend fun updateKeyOpacity(opacity: Float) {
+        context.dataStore.edit { it[PreferenceKeys.KEY_OPACITY] = opacity }
+    }
+
+    suspend fun updateKeyToneStyle(style: KeyToneStyle) {
+        context.dataStore.edit { it[PreferenceKeys.KEY_TONE_STYLE] = style.name }
+    }
+
+    suspend fun updateKeyBorderEnabled(enabled: Boolean) {
+        context.dataStore.edit { it[PreferenceKeys.KEY_BORDER_ENABLED] = enabled }
+    }
+
+    suspend fun updateCustomKeyColor(hex: String) {
+        context.dataStore.edit { it[PreferenceKeys.CUSTOM_KEY_COLOR_HEX] = hex }
+    }
+
     suspend fun updateKeyboardBackgroundConfig(
         type: KeyboardBackgroundType,
         preset: KeyboardPresetTheme,
         customPath: String,
-        dim: Float
+        dim: Float,
+        keyOpacity: Float = 0.55f,
+        keyToneStyle: KeyToneStyle = KeyToneStyle.AUTO_ADAPTIVE,
+        keyBorderEnabled: Boolean = true
     ) {
         context.dataStore.edit {
             it[PreferenceKeys.BACKGROUND_TYPE] = type.name
             it[PreferenceKeys.PRESET_THEME] = preset.name
             it[PreferenceKeys.CUSTOM_BACKGROUND_PATH] = customPath
             it[PreferenceKeys.BACKGROUND_OVERLAY_DIM] = dim
+            it[PreferenceKeys.KEY_OPACITY] = keyOpacity
+            it[PreferenceKeys.KEY_TONE_STYLE] = keyToneStyle.name
+            it[PreferenceKeys.KEY_BORDER_ENABLED] = keyBorderEnabled
         }
     }
 
@@ -239,6 +287,10 @@ class PreferencesRepository(private val context: Context) {
 
     suspend fun setOnboardingCompleted(completed: Boolean) {
         context.dataStore.edit { it[PreferenceKeys.ONBOARDING_COMPLETED] = completed }
+    }
+
+    suspend fun updateTemporaryDisabled(disabled: Boolean) {
+        context.dataStore.edit { it[PreferenceKeys.TEMPORARY_DISABLED] = disabled }
     }
 
     suspend fun resetToDefaults() {

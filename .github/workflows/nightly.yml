@@ -47,12 +47,18 @@ jobs:
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          packages: |
+            platform-tools
+            platforms;android-35
+            build-tools;35.0.0
 
       - name: Grant Execute Permission to Gradle
         run: |
-          if [ -f "./gradlew" ]; then
-            chmod +x ./gradlew
+          if [ ! -f "./gradlew" ]; then
+            gradle wrapper
           fi
+          chmod +x ./gradlew
 
       - name: Prepare Signing Key
         run: |
@@ -66,17 +72,30 @@ jobs:
         env:
           GITHUB_RUN_NUMBER: ${{ github.run_number }}
         run: |
-          gradle :app:assembleDebug -PversionCode=${{ github.run_number }} --stacktrace
+          ./gradlew :app:assembleDebug \
+            -PversionCode="${{ github.run_number }}" \
+            --stacktrace
+
           mkdir -p build-artifacts
+
           UNIVERSAL_APK=$(find app/build/outputs/apk/debug/ -name "*.apk" | head -n 1)
+
+          if [ -z "$UNIVERSAL_APK" ] || [ ! -f "$UNIVERSAL_APK" ]; then
+            echo "Universal APK tidak ditemukan"
+            exit 1
+          fi
+
           cp "$UNIVERSAL_APK" build-artifacts/KeyGlass-all-arch-nightly.apk
 
       - name: Build ABI Split APKs (64-bit, 32-bit, Universal ARM)
         env:
           GITHUB_RUN_NUMBER: ${{ github.run_number }}
         run: |
-          gradle :app:assembleDebug -PenableSplits=true -PversionCode=${{ github.run_number }} --stacktrace
-          
+          ./gradlew :app:assembleDebug \
+            -PenableSplits=true \
+            -PversionCode="${{ github.run_number }}" \
+            --stacktrace
+
           # Find generated split APKs
           ARM64_APK=$(find app/build/outputs/apk/debug/ -name "*arm64-v8a*.apk" | head -n 1)
           ARMV7_APK=$(find app/build/outputs/apk/debug/ -name "*armeabi-v7a*.apk" | head -n 1)
@@ -99,6 +118,15 @@ jobs:
           else
             cp build-artifacts/KeyGlass-all-arch-nightly.apk build-artifacts/KeyGlass-universal-arm-nightly.apk
           fi
+
+      - name: Verify Build Artifacts
+        run: |
+          find build-artifacts -maxdepth 1 -type f -print
+
+          test -f build-artifacts/KeyGlass-all-arch-nightly.apk
+          test -f build-artifacts/KeyGlass-arm64-v8a-nightly.apk
+          test -f build-artifacts/KeyGlass-armeabi-v7a-nightly.apk
+          test -f build-artifacts/KeyGlass-universal-arm-nightly.apk
 
       - name: Generate Checksums & Build Metadata
         run: |

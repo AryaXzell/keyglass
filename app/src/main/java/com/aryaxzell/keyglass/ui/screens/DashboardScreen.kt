@@ -78,6 +78,7 @@ import com.aryaxzell.keyglass.ui.components.HIGCheckmarkIcon
 import com.aryaxzell.keyglass.ui.components.HIGClearIcon
 import com.aryaxzell.keyglass.ui.components.HIGGearIcon
 import com.aryaxzell.keyglass.ui.components.HIGGroupedSection
+import com.aryaxzell.keyglass.ui.components.HIGSwitch
 import com.aryaxzell.keyglass.ui.components.HIGHandTapIcon
 import com.aryaxzell.keyglass.ui.components.HIGInfoIcon
 import com.aryaxzell.keyglass.ui.components.HIGNavBar
@@ -218,7 +219,27 @@ fun DashboardScreen(
             StatusCard(
                 isEnabled = isEnabled,
                 isActive = isActive,
+                temporaryDisabled = settings.temporaryDisabled,
                 staggerIndex = 0,
+                onToggleChange = { turnOn ->
+                    scope.launch {
+                        preferencesRepository.updateTemporaryDisabled(!turnOn)
+                        if (!turnOn) {
+                            val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
+                            imm?.showInputMethodPicker()
+                        } else {
+                            if (!isEnabled) {
+                                val intent = Intent(Settings.ACTION_INPUT_METHOD_SETTINGS).apply {
+                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                }
+                                context.startActivity(intent)
+                            } else if (!isActive) {
+                                val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
+                                imm?.showInputMethodPicker()
+                            }
+                        }
+                    }
+                },
                 onEnable = {
                     val intent = Intent(Settings.ACTION_INPUT_METHOD_SETTINGS).apply {
                         addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -383,12 +404,16 @@ fun DashboardScreen(
 private fun StatusCard(
     isEnabled: Boolean,
     isActive: Boolean,
+    temporaryDisabled: Boolean,
     staggerIndex: Int = 0,
+    onToggleChange: (Boolean) -> Unit,
     onEnable: () -> Unit,
     onSwitch: () -> Unit
 ) {
     val colors = HIGTheme.colors
     val strings = LocalStrings.current
+
+    val isCurrentlyActive = isActive && !temporaryDisabled
 
     HIGGroupedSection(header = strings.keyboardStatus) {
         Column(
@@ -400,7 +425,11 @@ private fun StatusCard(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                val statusColor = if (isActive) colors.success else if (isEnabled) Color(0xFFFF9500) else colors.destructive
+                val statusColor = if (temporaryDisabled) Color(0xFFFF9500)
+                else if (isActive) colors.success
+                else if (isEnabled) Color(0xFFFF9500)
+                else colors.destructive
+
                 Box(
                     modifier = Modifier
                         .size(14.dp)
@@ -410,28 +439,42 @@ private fun StatusCard(
 
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = if (isActive) strings.statusActive
+                        text = if (temporaryDisabled) strings.keyboardPausedStatus
+                        else if (isActive) strings.statusActive
                         else if (isEnabled) strings.statusEnabled
                         else strings.statusDisabled,
                         style = HIGTheme.typography.headline,
                         color = colors.primaryLabel
                     )
                     Text(
-                        text = if (isActive) strings.statusActiveSub
+                        text = if (temporaryDisabled) strings.keyboardPausedSub
+                        else if (isActive) strings.statusActiveSub
                         else if (isEnabled) strings.statusEnabledSub
                         else strings.statusDisabledSub,
                         style = HIGTheme.typography.footnote,
                         color = colors.secondaryLabel
                     )
                 }
+
+                HIGSwitch(
+                    checked = isCurrentlyActive,
+                    onCheckedChange = { onToggleChange(it) }
+                )
             }
 
-            if (!isActive) {
+            if (!isCurrentlyActive) {
                 Spacer(modifier = Modifier.height(14.dp))
                 if (!isEnabled) {
                     HIGButton(
                         text = strings.enableInSettings,
                         onClick = onEnable,
+                        style = HIGButtonStyle.FILLED,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                } else if (temporaryDisabled) {
+                    HIGButton(
+                        text = strings.enableKeyGlass,
+                        onClick = { onToggleChange(true) },
                         style = HIGButtonStyle.FILLED,
                         modifier = Modifier.fillMaxWidth()
                     )

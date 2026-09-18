@@ -6,10 +6,23 @@ import android.inputmethodservice.InputMethodService
 import android.text.InputType
 import android.view.View
 import android.view.inputmethod.EditorInfo
+import android.view.inputmethod.InputMethodManager
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Text
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.LifecycleRegistry
@@ -24,6 +37,11 @@ import com.aryaxzell.keyglass.data.db.KeyGlassDatabase
 import com.aryaxzell.keyglass.data.db.PersonalDictionaryRepository
 import com.aryaxzell.keyglass.data.engine.PredictionEngine
 import com.aryaxzell.keyglass.data.engine.SuggestionCandidate
+import com.aryaxzell.keyglass.ui.components.HIGButton
+import com.aryaxzell.keyglass.ui.components.HIGButtonStyle
+import com.aryaxzell.keyglass.ui.localization.LocalStrings
+import com.aryaxzell.keyglass.ui.theme.HIGTheme
+import com.aryaxzell.keyglass.ui.theme.KeyGlassKeyboardTheme
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -103,35 +121,88 @@ class KeyGlassInputMethodService : InputMethodService(), LifecycleOwner, SavedSt
             setViewTreeLifecycleOwner(this@KeyGlassInputMethodService)
             setViewTreeSavedStateRegistryOwner(this@KeyGlassInputMethodService)
             setContent {
-                KeyboardView(
-                    settings = currentSettings,
-                    isPasswordField = isPasswordField,
-                    shiftState = shiftState,
-                    keyboardMode = keyboardMode,
-                    enterActionLabel = enterActionLabel,
-                    suggestions = suggestions,
-                    clipboardPreview = clipboardPreview,
-                    onCharTyped = { char -> handleCharTyped(char) },
-                    onBackspace = { handleBackspace() },
-                    onSpace = { handleSpace() },
-                    onEnter = { handleEnter() },
-                    onShiftClick = { handleShiftClick() },
-                    onShiftDoubleClick = { handleShiftDoubleClick() },
-                    onModeChange = { mode -> keyboardMode = mode },
-                    onLanguageSwitch = { handleLanguageSwitch() },
-                    onSuggestionClicked = { candidate -> handleSuggestionClicked(candidate) },
-                    onPasteClicked = { handlePaste() },
-                    onCursorMoved = { offset -> handleCursorMoved(offset) },
-                    onKeyFeedback = {
-                        audioHapticFeedback.triggerKeyFeedback(
-                            window?.window?.decorView,
-                            hapticEnabled = currentSettings.hapticFeedbackEnabled,
-                            hapticIntensity = currentSettings.hapticIntensity,
-                            soundEnabled = currentSettings.soundFeedbackEnabled,
-                            soundVolume = currentSettings.soundVolume
+                KeyGlassKeyboardTheme(settings = currentSettings) {
+                    if (currentSettings.temporaryDisabled) {
+                        // Paused State Bar with Fallback Option
+                        val colors = HIGTheme.colors
+                        val strings = LocalStrings.current
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(220.dp)
+                                .background(colors.keyboardBackground)
+                                .padding(16.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                Text(
+                                    text = strings.keyboardPausedStatus,
+                                    style = HIGTheme.typography.headline,
+                                    color = colors.primaryLabel
+                                )
+                                Text(
+                                    text = strings.keyboardPausedSub,
+                                    style = HIGTheme.typography.footnote,
+                                    color = colors.secondaryLabel
+                                )
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                ) {
+                                    HIGButton(
+                                        text = strings.enableKeyGlass,
+                                        onClick = {
+                                            serviceScope.launch {
+                                                preferencesRepository.updateTemporaryDisabled(false)
+                                            }
+                                        },
+                                        style = HIGButtonStyle.FILLED
+                                    )
+                                    HIGButton(
+                                        text = strings.switchToKeyGlass,
+                                        onClick = {
+                                            val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
+                                            imm?.showInputMethodPicker()
+                                        },
+                                        style = HIGButtonStyle.TINTED
+                                    )
+                                }
+                            }
+                        }
+                    } else {
+                        KeyboardView(
+                            settings = currentSettings,
+                            isPasswordField = isPasswordField,
+                            shiftState = shiftState,
+                            keyboardMode = keyboardMode,
+                            enterActionLabel = enterActionLabel,
+                            suggestions = suggestions,
+                            clipboardPreview = clipboardPreview,
+                            onCharTyped = { char -> handleCharTyped(char) },
+                            onBackspace = { handleBackspace() },
+                            onSpace = { handleSpace() },
+                            onEnter = { handleEnter() },
+                            onShiftClick = { handleShiftClick() },
+                            onShiftDoubleClick = { handleShiftDoubleClick() },
+                            onModeChange = { mode -> keyboardMode = mode },
+                            onLanguageSwitch = { handleLanguageSwitch() },
+                            onSuggestionClicked = { candidate -> handleSuggestionClicked(candidate) },
+                            onPasteClicked = { handlePaste() },
+                            onCursorMoved = { offset -> handleCursorMoved(offset) },
+                            onKeyFeedback = {
+                                audioHapticFeedback.triggerKeyFeedback(
+                                    window?.window?.decorView,
+                                    hapticEnabled = currentSettings.hapticFeedbackEnabled,
+                                    hapticIntensity = currentSettings.hapticIntensity,
+                                    soundEnabled = currentSettings.soundFeedbackEnabled,
+                                    soundVolume = currentSettings.soundVolume
+                                )
+                            }
                         )
                     }
-                )
+                }
             }
         }
         return composeView

@@ -7,6 +7,7 @@ import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.text.font.FontFamily
 import com.aryaxzell.keyglass.data.datastore.FontSource
+import com.aryaxzell.keyglass.data.datastore.KeyGlassSettings
 import com.aryaxzell.keyglass.data.datastore.ThemeMode
 
 val LocalHIGColors = staticCompositionLocalOf { DarkHIGColorScheme }
@@ -43,6 +44,23 @@ fun KeyGlassTheme(
     val colorScheme = baseScheme.copy(accent = accent)
 
     val fontFamily = if (fontSource == FontSource.APP_FONT) SFProFontFamily else FontFamily.Default
+    val typography = getHIGTypography(fontFamily)
+
+    CompositionLocalProvider(
+        LocalHIGColors provides colorScheme,
+        LocalHIGTypography provides typography,
+        content = content
+    )
+}
+
+@Composable
+fun KeyGlassKeyboardTheme(
+    settings: KeyGlassSettings,
+    content: @Composable () -> Unit
+) {
+    val systemDark = isSystemInDarkTheme()
+    val colorScheme = getKeyboardColorScheme(settings, systemDark)
+    val fontFamily = if (settings.fontSource == FontSource.APP_FONT) SFProFontFamily else FontFamily.Default
     val typography = getHIGTypography(fontFamily)
 
     CompositionLocalProvider(
