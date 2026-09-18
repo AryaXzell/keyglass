@@ -74,7 +74,11 @@ import com.aryaxzell.keyglass.ui.theme.HIGTheme
 import com.aryaxzell.keyglass.ui.theme.KeyGlassKeyboardTheme
 import com.aryaxzell.keyglass.ui.theme.KeyGlassTheme
 import com.aryaxzell.keyglass.ui.theme.parseHexColor
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.border
+import androidx.compose.material3.Surface
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.ui.platform.testTag
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -100,7 +104,7 @@ fun KeyboardView(
     onSuggestionClicked: (SuggestionCandidate) -> Unit,
     onPasteClicked: () -> Unit,
     onCursorMoved: (Int) -> Unit,
-    onKeyFeedback: () -> Unit,
+    onKeyFeedback: (AudioHapticFeedback.KeyType) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     KeyGlassKeyboardTheme(
@@ -133,11 +137,11 @@ fun KeyboardView(
                         suggestions = suggestions,
                         clipboardPreview = clipboardPreview,
                         onSuggestionClicked = {
-                            onKeyFeedback()
+                            onKeyFeedback(AudioHapticFeedback.KeyType.FUNCTION)
                             onSuggestionClicked(it)
                         },
                         onPasteClicked = {
-                            onKeyFeedback()
+                            onKeyFeedback(AudioHapticFeedback.KeyType.FUNCTION)
                             onPasteClicked()
                         }
                     )
@@ -237,7 +241,7 @@ fun KeyboardView(
                     KeyboardMode.EMOJI -> {
                         EmojiKeyboardLayout(
                             onEmojiSelected = { emoji ->
-                                onKeyFeedback()
+                                onKeyFeedback(AudioHapticFeedback.KeyType.STANDARD)
                                 onCharTyped(emoji)
                             },
                             onBackspace = onBackspace,
@@ -368,7 +372,7 @@ internal fun AlphaKeyboardLayout(
     onSwitchToSymbols: () -> Unit,
     onSwitchToEmoji: () -> Unit,
     onLanguageSwitch: () -> Unit,
-    onKeyFeedback: () -> Unit,
+    onKeyFeedback: (AudioHapticFeedback.KeyType) -> Unit,
     onCursorMoved: (Int) -> Unit,
     onShowPopup: (String, Offset) -> Unit,
     onDismissPopup: () -> Unit,
@@ -401,11 +405,11 @@ internal fun AlphaKeyboardLayout(
                     cornerRadius = cornerRadius,
                     longPressVariants = KeyboardLayouts.ACCENT_VARIANTS[char],
                     onTap = {
-                        onKeyFeedback()
+                        onKeyFeedback(AudioHapticFeedback.KeyType.STANDARD)
                         onCharTyped(displayChar)
                     },
                     onLongPress = { variants, offset ->
-                        onKeyFeedback()
+                        onKeyFeedback(AudioHapticFeedback.KeyType.FUNCTION)
                         onShowAccents(variants, offset)
                     },
                     onShowPopup = onShowPopup,
@@ -430,11 +434,11 @@ internal fun AlphaKeyboardLayout(
                     cornerRadius = cornerRadius,
                     longPressVariants = KeyboardLayouts.ACCENT_VARIANTS[char],
                     onTap = {
-                        onKeyFeedback()
+                        onKeyFeedback(AudioHapticFeedback.KeyType.STANDARD)
                         onCharTyped(displayChar)
                     },
                     onLongPress = { variants, offset ->
-                        onKeyFeedback()
+                        onKeyFeedback(AudioHapticFeedback.KeyType.FUNCTION)
                         onShowAccents(variants, offset)
                     },
                     onShowPopup = onShowPopup,
@@ -456,11 +460,11 @@ internal fun AlphaKeyboardLayout(
                 height = keyHeight,
                 cornerRadius = cornerRadius,
                 onClick = {
-                    onKeyFeedback()
+                    onKeyFeedback(AudioHapticFeedback.KeyType.FUNCTION)
                     onShiftClick()
                 },
                 onDoubleClick = {
-                    onKeyFeedback()
+                    onKeyFeedback(AudioHapticFeedback.KeyType.FUNCTION)
                     onShiftDoubleClick()
                 }
             )
@@ -475,11 +479,11 @@ internal fun AlphaKeyboardLayout(
                     cornerRadius = cornerRadius,
                     longPressVariants = KeyboardLayouts.ACCENT_VARIANTS[char],
                     onTap = {
-                        onKeyFeedback()
+                        onKeyFeedback(AudioHapticFeedback.KeyType.STANDARD)
                         onCharTyped(displayChar)
                     },
                     onLongPress = { variants, offset ->
-                        onKeyFeedback()
+                        onKeyFeedback(AudioHapticFeedback.KeyType.FUNCTION)
                         onShowAccents(variants, offset)
                     },
                     onShowPopup = onShowPopup,
@@ -493,7 +497,7 @@ internal fun AlphaKeyboardLayout(
                 height = keyHeight,
                 cornerRadius = cornerRadius,
                 onBackspace = {
-                    onKeyFeedback()
+                    onKeyFeedback(AudioHapticFeedback.KeyType.BACKSPACE)
                     onBackspace()
                 }
             )
@@ -512,7 +516,7 @@ internal fun AlphaKeyboardLayout(
                 height = keyHeight,
                 cornerRadius = cornerRadius,
                 onClick = {
-                    onKeyFeedback()
+                    onKeyFeedback(AudioHapticFeedback.KeyType.FUNCTION)
                     onSwitchToSymbols()
                 }
             )
@@ -524,7 +528,7 @@ internal fun AlphaKeyboardLayout(
                     height = keyHeight,
                     cornerRadius = cornerRadius,
                     onClick = {
-                        onKeyFeedback()
+                        onKeyFeedback(AudioHapticFeedback.KeyType.FUNCTION)
                         onLanguageSwitch()
                     }
                 )
@@ -536,7 +540,7 @@ internal fun AlphaKeyboardLayout(
                 height = keyHeight,
                 cornerRadius = cornerRadius,
                 onClick = {
-                    onKeyFeedback()
+                    onKeyFeedback(AudioHapticFeedback.KeyType.FUNCTION)
                     onSwitchToEmoji()
                 }
             )
@@ -549,7 +553,7 @@ internal fun AlphaKeyboardLayout(
                 languageLabel = if (settings.activeTypingLanguage.startsWith("in", ignoreCase = true)) "Indonesia" else "space",
                 sensitivity = settings.spaceBarCursorSensitivity,
                 onTap = {
-                    onKeyFeedback()
+                    onKeyFeedback(AudioHapticFeedback.KeyType.SPACE)
                     onSpace()
                 },
                 onCursorMoved = onCursorMoved
@@ -562,7 +566,7 @@ internal fun AlphaKeyboardLayout(
                 height = keyHeight,
                 cornerRadius = cornerRadius,
                 onClick = {
-                    onKeyFeedback()
+                    onKeyFeedback(AudioHapticFeedback.KeyType.RETURN)
                     onEnter()
                 }
             )
@@ -584,7 +588,7 @@ private fun SymbolsKeyboardLayout(
     onSwitchToPage2: () -> Unit,
     onSwitchToEmoji: () -> Unit,
     onLanguageSwitch: () -> Unit,
-    onKeyFeedback: () -> Unit,
+    onKeyFeedback: (AudioHapticFeedback.KeyType) -> Unit,
     onCursorMoved: (Int) -> Unit,
     onShowPopup: (String, Offset) -> Unit,
     onDismissPopup: () -> Unit
@@ -616,7 +620,7 @@ private fun SymbolsKeyboardLayout(
                     height = keyHeight,
                     cornerRadius = cornerRadius,
                     onTap = {
-                        onKeyFeedback()
+                        onKeyFeedback(AudioHapticFeedback.KeyType.STANDARD)
                         onCharTyped(char)
                     },
                     onShowPopup = onShowPopup,
@@ -637,7 +641,7 @@ private fun SymbolsKeyboardLayout(
                     height = keyHeight,
                     cornerRadius = cornerRadius,
                     onTap = {
-                        onKeyFeedback()
+                        onKeyFeedback(AudioHapticFeedback.KeyType.STANDARD)
                         onCharTyped(char)
                     },
                     onShowPopup = onShowPopup,
@@ -659,7 +663,7 @@ private fun SymbolsKeyboardLayout(
                 height = keyHeight,
                 cornerRadius = cornerRadius,
                 onClick = {
-                    onKeyFeedback()
+                    onKeyFeedback(AudioHapticFeedback.KeyType.FUNCTION)
                     onSwitchToPage2()
                 }
             )
@@ -672,7 +676,7 @@ private fun SymbolsKeyboardLayout(
                     height = keyHeight,
                     cornerRadius = cornerRadius,
                     onTap = {
-                        onKeyFeedback()
+                        onKeyFeedback(AudioHapticFeedback.KeyType.STANDARD)
                         onCharTyped(char)
                     },
                     onShowPopup = onShowPopup,
@@ -686,7 +690,7 @@ private fun SymbolsKeyboardLayout(
                 height = keyHeight,
                 cornerRadius = cornerRadius,
                 onBackspace = {
-                    onKeyFeedback()
+                    onKeyFeedback(AudioHapticFeedback.KeyType.BACKSPACE)
                     onBackspace()
                 }
             )
@@ -705,7 +709,7 @@ private fun SymbolsKeyboardLayout(
                 height = keyHeight,
                 cornerRadius = cornerRadius,
                 onClick = {
-                    onKeyFeedback()
+                    onKeyFeedback(AudioHapticFeedback.KeyType.FUNCTION)
                     onSwitchToAlpha()
                 }
             )
@@ -716,7 +720,7 @@ private fun SymbolsKeyboardLayout(
                     height = keyHeight,
                     cornerRadius = cornerRadius,
                     onClick = {
-                        onKeyFeedback()
+                        onKeyFeedback(AudioHapticFeedback.KeyType.FUNCTION)
                         onLanguageSwitch()
                     }
                 )
@@ -727,7 +731,7 @@ private fun SymbolsKeyboardLayout(
                 height = keyHeight,
                 cornerRadius = cornerRadius,
                 onClick = {
-                    onKeyFeedback()
+                    onKeyFeedback(AudioHapticFeedback.KeyType.FUNCTION)
                     onSwitchToEmoji()
                 }
             )
@@ -739,7 +743,7 @@ private fun SymbolsKeyboardLayout(
                 languageLabel = if (settings.activeTypingLanguage.startsWith("in", ignoreCase = true)) "Indonesia" else "space",
                 sensitivity = settings.spaceBarCursorSensitivity,
                 onTap = {
-                    onKeyFeedback()
+                    onKeyFeedback(AudioHapticFeedback.KeyType.SPACE)
                     onSpace()
                 },
                 onCursorMoved = onCursorMoved
@@ -751,7 +755,7 @@ private fun SymbolsKeyboardLayout(
                 height = keyHeight,
                 cornerRadius = cornerRadius,
                 onClick = {
-                    onKeyFeedback()
+                    onKeyFeedback(AudioHapticFeedback.KeyType.RETURN)
                     onEnter()
                 }
             )
@@ -764,34 +768,106 @@ private fun EmojiKeyboardLayout(
     onEmojiSelected: (String) -> Unit,
     onBackspace: () -> Unit,
     onSwitchToAlpha: () -> Unit,
-    onKeyFeedback: () -> Unit
+    onKeyFeedback: (AudioHapticFeedback.KeyType) -> Unit
 ) {
     var selectedCategory by remember { mutableStateOf(EmojiCategory.SMILEYS) }
+    val recentEmojis = remember {
+        mutableStateListOf(
+            "😀", "😂", "🥰", "👍", "❤️", "🔥", "🙏", "✨", "🎉", "👏", "😊", "😎", "🚀", "💡", "🙌"
+        )
+    }
     val colors = HIGTheme.colors
 
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .height(230.dp)
-            .padding(horizontal = 8.dp)
+            .height(235.dp)
+            .padding(horizontal = 4.dp)
     ) {
+        // Top Category Tab Bar
+        LazyRow(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            items(EmojiData.CATEGORIES) { category ->
+                val isSelected = category == selectedCategory
+                Surface(
+                    onClick = {
+                        onKeyFeedback(AudioHapticFeedback.KeyType.FUNCTION)
+                        selectedCategory = category
+                    },
+                    shape = RoundedCornerShape(12.dp),
+                    color = if (isSelected) colors.keyLetterBackground else Color.Transparent,
+                    border = BorderStroke(
+                        width = 1.dp,
+                        color = if (isSelected) colors.keyBorder else Color.Transparent
+                    ),
+                    modifier = Modifier.testTag("emoji_category_tab_${category.name.lowercase()}")
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text(text = category.icon, fontSize = 16.sp)
+                        Text(
+                            text = category.title,
+                            fontSize = 12.sp,
+                            fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                            color = if (isSelected) colors.primaryLabel else colors.secondaryLabel
+                        )
+                    }
+                }
+            }
+        }
+
+        // Active Category Title Header
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp, vertical = 2.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "${selectedCategory.icon} ${selectedCategory.title}",
+                style = HIGTheme.typography.caption1.copy(fontWeight = FontWeight.Medium),
+                color = colors.secondaryLabel
+            )
+        }
+
         // Emoji Grid
-        val currentEmojis = EmojiData.EMOJI_MAP[selectedCategory] ?: emptyList()
+        val currentEmojis = if (selectedCategory == EmojiCategory.RECENT) {
+            recentEmojis
+        } else {
+            EmojiData.EMOJI_MAP[selectedCategory] ?: emptyList()
+        }
 
         LazyVerticalGrid(
-            columns = GridCells.Adaptive(minSize = 40.dp),
+            columns = GridCells.Adaptive(minSize = 42.dp),
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(1f)
-                .padding(vertical = 4.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                .padding(horizontal = 4.dp, vertical = 2.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             items(currentEmojis) { emoji ->
                 Box(
                     modifier = Modifier
-                        .size(40.dp)
-                        .clickable { onEmojiSelected(emoji) },
+                        .size(42.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable {
+                            onKeyFeedback(AudioHapticFeedback.KeyType.STANDARD)
+                            if (!recentEmojis.contains(emoji)) {
+                                recentEmojis.add(0, emoji)
+                                if (recentEmojis.size > 30) recentEmojis.removeAt(recentEmojis.size - 1)
+                            }
+                            onEmojiSelected(emoji)
+                        }
+                        .testTag("emoji_item_${emoji}"),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
@@ -802,75 +878,67 @@ private fun EmojiKeyboardLayout(
             }
         }
 
-        // Bottom Category Bar & ABC / Backspace row
+        // Bottom Action Bar (ABC Switch & Backspace)
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(44.dp)
-                .background(colors.keyboardBackground),
-            verticalAlignment = Alignment.CenterVertically
+                .padding(top = 2.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            // ABC Switch
-            Box(
+            // ABC Switch Button
+            FunctionKey(
+                label = "ABC",
                 modifier = Modifier
-                    .width(44.dp)
-                    .fillMaxHeight()
-                    .clickable {
-                        onKeyFeedback()
-                        onSwitchToAlpha()
-                    },
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = "ABC",
-                    style = HIGTheme.typography.headline.copy(fontSize = 15.sp),
-                    color = colors.primaryLabel
-                )
-            }
+                    .width(64.dp)
+                    .testTag("emoji_abc_button"),
+                height = 40.dp,
+                cornerRadius = 10.dp,
+                onClick = {
+                    onKeyFeedback(AudioHapticFeedback.KeyType.FUNCTION)
+                    onSwitchToAlpha()
+                }
+            )
 
-            // Categories horizontal bar
+            // Category Quick Navigation Indicator Pills
             LazyRow(
                 modifier = Modifier
                     .weight(1f)
-                    .fillMaxHeight(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceEvenly
+                    .padding(horizontal = 8.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 items(EmojiData.CATEGORIES) { category ->
                     val isSelected = category == selectedCategory
                     Box(
                         modifier = Modifier
-                            .padding(horizontal = 6.dp)
-                            .size(32.dp)
+                            .size(28.dp)
                             .clip(CircleShape)
-                            .background(if (isSelected) colors.primaryLabel.copy(alpha = 0.15f) else Color.Transparent)
+                            .background(if (isSelected) colors.primaryLabel.copy(alpha = 0.2f) else Color.Transparent)
                             .clickable {
-                                onKeyFeedback()
+                                onKeyFeedback(AudioHapticFeedback.KeyType.FUNCTION)
                                 selectedCategory = category
                             },
                         contentAlignment = Alignment.Center
                     ) {
-                        Text(
-                            text = category.icon,
-                            fontSize = 18.sp
-                        )
+                        Text(text = category.icon, fontSize = 15.sp)
                     }
                 }
             }
 
-            // Backspace key
-            Box(
+            // Backspace Button
+            BackspaceKey(
                 modifier = Modifier
-                    .width(44.dp)
-                    .fillMaxHeight()
-                    .clickable {
-                        onKeyFeedback()
-                        onBackspace()
-                    },
-                contentAlignment = Alignment.Center
-            ) {
-                BackspaceIcon(color = colors.primaryLabel)
-            }
+                    .width(64.dp)
+                    .testTag("emoji_backspace_button"),
+                height = 40.dp,
+                cornerRadius = 10.dp,
+                onBackspace = {
+                    onKeyFeedback(AudioHapticFeedback.KeyType.BACKSPACE)
+                    onBackspace()
+                }
+            )
         }
     }
 }

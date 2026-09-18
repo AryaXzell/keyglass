@@ -60,6 +60,7 @@ import com.aryaxzell.keyglass.data.datastore.KeyGlassSettings
 import com.aryaxzell.keyglass.data.datastore.KeyToneStyle
 import com.aryaxzell.keyglass.data.datastore.PreferencesRepository
 import com.aryaxzell.keyglass.ime.AlphaKeyboardLayout
+import com.aryaxzell.keyglass.ime.AudioHapticFeedback
 import com.aryaxzell.keyglass.ime.KeyboardBackgroundRenderer
 import com.aryaxzell.keyglass.ime.ShiftState
 import com.aryaxzell.keyglass.ui.components.HIGButton
@@ -109,6 +110,7 @@ fun KeyboardCustomizationScreen(
     // Shift state and key feedback for interactive real-time preview keyboard
     var previewShiftState by remember { mutableStateOf(ShiftState.SHIFT_ONCE) }
     var showSavedBanner by remember { mutableStateOf(false) }
+    val audioHapticFeedback = remember(context) { AudioHapticFeedback(context) }
 
     // Custom preview settings instance for live rendering
     val livePreviewSettings = remember(
@@ -268,7 +270,16 @@ fun KeyboardCustomizationScreen(
                                         onSwitchToSymbols = {},
                                         onSwitchToEmoji = {},
                                         onLanguageSwitch = {},
-                                        onKeyFeedback = {},
+                                        onKeyFeedback = { keyType ->
+                                            audioHapticFeedback.triggerKeyFeedback(
+                                                null,
+                                                hapticEnabled = settings.hapticFeedbackEnabled,
+                                                hapticIntensity = settings.hapticIntensity,
+                                                soundEnabled = settings.soundFeedbackEnabled,
+                                                soundVolume = settings.soundVolume,
+                                                keyType = keyType
+                                            )
+                                        },
                                         onCursorMoved = {},
                                         onShowPopup = { _, _ -> },
                                         onDismissPopup = {},

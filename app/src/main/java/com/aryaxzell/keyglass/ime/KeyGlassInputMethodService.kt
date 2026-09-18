@@ -191,13 +191,14 @@ class KeyGlassInputMethodService : InputMethodService(), LifecycleOwner, SavedSt
                             onSuggestionClicked = { candidate -> handleSuggestionClicked(candidate) },
                             onPasteClicked = { handlePaste() },
                             onCursorMoved = { offset -> handleCursorMoved(offset) },
-                            onKeyFeedback = {
+                            onKeyFeedback = { keyType ->
                                 audioHapticFeedback.triggerKeyFeedback(
                                     window?.window?.decorView,
                                     hapticEnabled = currentSettings.hapticFeedbackEnabled,
                                     hapticIntensity = currentSettings.hapticIntensity,
                                     soundEnabled = currentSettings.soundFeedbackEnabled,
-                                    soundVolume = currentSettings.soundVolume
+                                    soundVolume = currentSettings.soundVolume,
+                                    keyType = keyType
                                 )
                             }
                         )
@@ -380,20 +381,29 @@ class KeyGlassInputMethodService : InputMethodService(), LifecycleOwner, SavedSt
         updatePredictions()
     }
 
+    private var predictionJob: Job? = null
+
     private fun updateAutoCapitalize() {
         if (!currentSettings.autoCapitalizeEnabled || shiftState == ShiftState.CAPS_LOCK) return
         val ic = currentInputConnection ?: return
         val textBefore = ic.getTextBeforeCursor(4, 0)?.toString() ?: ""
-
-        // At start of field or preceded by sentence end (". ", "? ", "! ")
-        if (textBefore.isEmpty() || textBefore.matches(".*[.?!]\\s+$".toRegex()) || textBefore.endsWith("\n")) {
+        if (textBefore.isEmpty() || textBefore.endsWith("\n")) {
             shiftState = ShiftState.SHIFT_ONCE
-        } else {
-            shiftState = ShiftState.LOWERCASE
+            return
         }
+        val trimmed = textBefore.trimEnd()
+        if (trimmed.isNotEmpty()) {
+            val lastChar = trimmed.last()
+            if (lastChar == '.' || lastChar == '?' || lastChar == '!') {
+                shiftState = ShiftState.SHIFT_ONCE
+                return
+            }
+        }
+        shiftState = ShiftState.LOWERCASE
     }
 
     private fun updatePredictions() {
+        predictionJob?.cancel()
         if (!currentSettings.predictiveTextEnabled || isPasswordField) {
             suggestions = emptyList()
             return
@@ -406,7 +416,7 @@ class KeyGlassInputMethodService : InputMethodService(), LifecycleOwner, SavedSt
             textBefore.substring(0, textBefore.length - currentWord.length)
         } else ""
 
-        serviceScope.launch {
+        predictionJob = serviceScope.launch {
             val results = predictionEngine.getSuggestions(
                 currentWord = currentWord,
                 previousText = previousText,
@@ -420,8 +430,12 @@ class KeyGlassInputMethodService : InputMethodService(), LifecycleOwner, SavedSt
     private fun getCurrentWordBeforeCursor(): String {
         val ic = currentInputConnection ?: return ""
         val textBefore = ic.getTextBeforeCursor(30, 0)?.toString() ?: return ""
-        val match = "\\b\\w+$".toRegex().find(textBefore)
-        return match?.value ?: ""
+        if (textBefore.isEmpty()) return ""
+        var i = textBefore.length - 1
+        while (i >= 0 && (textBefore[i].isLetterOrDigit() || textBefore[i] == '\'')) {
+            i--
+        }
+        return textBefore.substring(i + 1)
     }
 
     private fun updateClipboardPreview() {

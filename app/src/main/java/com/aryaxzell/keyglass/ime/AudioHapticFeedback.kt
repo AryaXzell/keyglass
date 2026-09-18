@@ -1,22 +1,23 @@
 package com.aryaxzell.keyglass.ime
 
 import android.content.Context
-import android.media.AudioAttributes
-import android.media.AudioFormat
-import android.media.AudioTrack
+import android.media.AudioManager
 import android.os.Build
-import android.os.CombinedVibration
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
 import android.view.HapticFeedbackConstants
 import android.view.View
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlin.math.sin
 
 class AudioHapticFeedback(private val context: Context) {
+    enum class KeyType {
+        STANDARD,
+        SPACE,
+        BACKSPACE,
+        RETURN,
+        FUNCTION
+    }
+
     private val vibrator: Vibrator? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
         val vibratorManager = context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? VibratorManager
         vibratorManager?.defaultVibrator
@@ -25,39 +26,57 @@ class AudioHapticFeedback(private val context: Context) {
         context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
     }
 
-    private val audioScope = CoroutineScope(Dispatchers.Default)
-
-    // Pre-generated short soft pop sound buffer
-    private val sampleRate = 22050
-    private val popAudioData: ShortArray by lazy {
-        val durationMs = 25
-        val numSamples = (sampleRate * (durationMs / 1000.0)).toInt()
-        val buffer = ShortArray(numSamples)
-        val frequency = 480.0 // Warm soft pop pitch
-        for (i in 0 until numSamples) {
-            val t = i.toDouble() / sampleRate
-            // Exponential decay envelope
-            val envelope = Math.exp(-t * 180.0)
-            val wave = sin(2.0 * Math.PI * frequency * t) * envelope
-            buffer[i] = (wave * 24000.0).toInt().coerceIn(-32768, 32767).toShort()
-        }
-        buffer
-    }
+    private val audioManager: AudioManager? = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
 
     fun triggerKeyFeedback(
         view: View?,
         hapticEnabled: Boolean,
         hapticIntensity: Float,
         soundEnabled: Boolean,
-        soundVolume: Float
+        soundVolume: Float,
+        keyType: KeyType = KeyType.STANDARD
     ) {
-        // Haptic feedback
+        // Haptic feedback simulating iOS Taptic Engine click response
         if (hapticEnabled) {
             try {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && vibrator != null && vibrator.hasVibrator()) {
-                    val amplitude = (hapticIntensity.coerceIn(0.1f, 1.0f) * 255).toInt().coerceIn(1, 255)
-                    val effect = VibrationEffect.createOneShot(12L, amplitude)
-                    vibrator.vibrate(effect)
+                if (vibrator != null && vibrator.hasVibrator()) {
+                    val scale = hapticIntensity.coerceIn(0.1f, 1.0f)
+                    
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && vibrator.areAllPrimitivesSupported(VibrationEffect.Composition.PRIMITIVE_TICK)) {
+                        val primitive = when (keyType) {
+                            KeyType.SPACE, KeyType.RETURN -> VibrationEffect.Composition.PRIMITIVE_CLICK
+                            KeyType.BACKSPACE -> VibrationEffect.Composition.PRIMITIVE_TICK
+                            KeyType.FUNCTION -> VibrationEffect.Composition.PRIMITIVE_LOW_TICK
+                            KeyType.STANDARD -> VibrationEffect.Composition.PRIMITIVE_TICK
+                        }
+                        val primitiveScale = when (keyType) {
+                            KeyType.STANDARD -> (scale * 0.7f).coerceIn(0.1f, 1.0f)
+                            KeyType.FUNCTION -> (scale * 0.5f).coerceIn(0.1f, 1.0f)
+                            else -> scale
+                        }
+                        val effect = VibrationEffect.startComposition()
+                            .addPrimitive(primitive, primitiveScale)
+                            .compose()
+                        vibrator.vibrate(effect)
+                    } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                        val effectType = if (keyType == KeyType.SPACE || keyType == KeyType.RETURN) {
+                            VibrationEffect.EFFECT_CLICK
+                        } else {
+                            VibrationEffect.EFFECT_TICK
+                        }
+                        vibrator.vibrate(VibrationEffect.createPredefined(effectType))
+                    } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        val duration = when (keyType) {
+                            KeyType.SPACE, KeyType.RETURN -> 14L
+                            KeyType.BACKSPACE -> 10L
+                            KeyType.FUNCTION -> 6L
+                            KeyType.STANDARD -> 8L
+                        }
+                        val amplitude = (scale * 255).toInt().coerceIn(1, 255)
+                        vibrator.vibrate(VibrationEffect.createOneShot(duration, amplitude))
+                    } else {
+                        view?.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                    }
                 } else {
                     view?.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                 }
@@ -66,39 +85,20 @@ class AudioHapticFeedback(private val context: Context) {
             }
         }
 
-        // Sound feedback
+        // Zero-allocation native system sound feedback
         if (soundEnabled && soundVolume > 0.05f) {
-            audioScope.launch {
-                try {
-                    val track = AudioTrack.Builder()
-                        .setAudioAttributes(
-                            AudioAttributes.Builder()
-                                .setUsage(AudioAttributes.USAGE_ASSISTANCE_SONIFICATION)
-                                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                                .build()
-                        )
-                        .setAudioFormat(
-                            AudioFormat.Builder()
-                                .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
-                                .setSampleRate(sampleRate)
-                                .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
-                                .build()
-                        )
-                        .setBufferSizeInBytes(popAudioData.size * 2)
-                        .setTransferMode(AudioTrack.MODE_STATIC)
-                        .build()
-
-                    track.setVolume(soundVolume.coerceIn(0f, 1f))
-                    track.write(popAudioData, 0, popAudioData.size)
-                    track.play()
-                    // Release after playing
-                    kotlinx.coroutines.delay(60)
-                    track.stop()
-                    track.release()
-                } catch (e: Exception) {
-                    // Ignore sound track failure gracefully
+            try {
+                val effect = when (keyType) {
+                    KeyType.SPACE -> AudioManager.FX_KEYPRESS_SPACEBAR
+                    KeyType.BACKSPACE -> AudioManager.FX_KEYPRESS_DELETE
+                    KeyType.RETURN -> AudioManager.FX_KEYPRESS_RETURN
+                    else -> AudioManager.FX_KEYPRESS_STANDARD
                 }
+                audioManager?.playSoundEffect(effect, soundVolume.coerceIn(0f, 1f))
+            } catch (e: Exception) {
+                // Ignore audio feedback failures
             }
         }
     }
 }
+

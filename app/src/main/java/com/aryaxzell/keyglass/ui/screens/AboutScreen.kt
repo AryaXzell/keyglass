@@ -2,6 +2,8 @@ package com.aryaxzell.keyglass.ui.screens
 
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
+import android.provider.Settings
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -77,8 +79,17 @@ fun AboutScreen(
 
     // Update modal states
     var showUpdateModal by remember { mutableStateOf(false) }
+    var showInstallPermissionDialog by remember { mutableStateOf(false) }
     var updateInfo by remember { mutableStateOf<NightlyUpdateInfo?>(null) }
     var downloadState by remember { mutableStateOf<UpdateDownloadState>(UpdateDownloadState.Idle) }
+
+    val installedVersion = remember {
+        try {
+            context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "1.0.0"
+        } catch (e: Exception) {
+            "1.0.0"
+        }
+    }
 
     LaunchedEffect(Unit) {
         val res = gitHubRepository.getDeveloperProfile()
@@ -179,7 +190,7 @@ fun AboutScreen(
                         onClick = {
                             isCheckingUpdates = true
                             scope.launch {
-                                val checkResult = gitHubRepository.checkNightlyUpdates()
+                                val checkResult = gitHubRepository.checkNightlyUpdates(installedVersion)
                                 isCheckingUpdates = false
                                 val info = checkResult.getOrNull()
                                 if (info != null) {
@@ -306,7 +317,7 @@ fun AboutScreen(
         HIGDialog(
             show = showUpdateModal,
             onDismissRequest = {
-                if (downloadState !is UpdateDownloadState.Downloading) {
+                if (downloadState !is UpdateDownloadState.Downloading && downloadState !is UpdateDownloadState.Extracting) {
                     showUpdateModal = false
                 }
             }
@@ -315,26 +326,26 @@ fun AboutScreen(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Text(
-                    text = strings.updateModalTitle,
-                    style = HIGTheme.typography.title2,
-                    color = colors.primaryLabel
-                )
-
-                Spacer(modifier = Modifier.height(6.dp))
-
-                Text(
-                    text = "${info.artifactName} (${info.targetAbi})",
-                    style = HIGTheme.typography.footnote,
-                    color = colors.secondaryLabel
-                )
-
-                Spacer(modifier = Modifier.height(16.dp))
-
                 when (val state = downloadState) {
                     is UpdateDownloadState.Idle -> {
                         Text(
-                            text = strings.updateReadyDesc,
+                            text = strings.updateModalTitle,
+                            style = HIGTheme.typography.title2,
+                            color = colors.primaryLabel
+                        )
+
+                        Spacer(modifier = Modifier.height(4.dp))
+
+                        Text(
+                            text = "${info.artifactName} (${info.versionLabel}) • $deviceArch",
+                            style = HIGTheme.typography.footnote,
+                            color = colors.secondaryLabel
+                        )
+
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        Text(
+                            text = strings.updateAvailableDesc,
                             style = HIGTheme.typography.body,
                             color = colors.primaryLabel,
                             lineHeight = 20.sp
@@ -343,7 +354,7 @@ fun AboutScreen(
                         Spacer(modifier = Modifier.height(20.dp))
 
                         HIGButton(
-                            text = "Download & Install ($deviceArch)",
+                            text = "Unduh Pembaruan ($deviceArch)",
                             style = HIGButtonStyle.FILLED,
                             modifier = Modifier.fillMaxWidth(),
                             onClick = {
@@ -370,7 +381,7 @@ fun AboutScreen(
                                         downloadState = UpdateDownloadState.ReadyToInstall(apkFile, apkUri)
                                     } else {
                                         downloadState = UpdateDownloadState.Error(
-                                            message = dlResult.exceptionOrNull()?.message ?: "Download failed",
+                                            message = dlResult.exceptionOrNull()?.message ?: "Gagal mengunduh pembaruan.",
                                             fallbackUrl = info.htmlUrl
                                         )
                                     }
@@ -389,17 +400,35 @@ fun AboutScreen(
                                 showUpdateModal = false
                             }
                         )
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        HIGButton(
+                            text = strings.cancel,
+                            style = HIGButtonStyle.PLAIN,
+                            modifier = Modifier.fillMaxWidth(),
+                            onClick = { showUpdateModal = false }
+                        )
                     }
 
                     is UpdateDownloadState.Downloading -> {
                         val percent = (state.progress * 100).toInt()
+
                         Text(
-                            text = "${strings.downloadingUpdate} ($percent%)",
-                            style = HIGTheme.typography.subhead,
+                            text = strings.downloadingUpdate,
+                            style = HIGTheme.typography.title2,
                             color = colors.primaryLabel
                         )
 
-                        Spacer(modifier = Modifier.height(12.dp))
+                        Spacer(modifier = Modifier.height(4.dp))
+
+                        Text(
+                            text = "${info.artifactName} ($percent%)",
+                            style = HIGTheme.typography.footnote,
+                            color = colors.secondaryLabel
+                        )
+
+                        Spacer(modifier = Modifier.height(20.dp))
 
                         LinearProgressIndicator(
                             progress = { state.progress },
@@ -411,7 +440,7 @@ fun AboutScreen(
                             trackColor = colors.groupedCard
                         )
 
-                        Spacer(modifier = Modifier.height(8.dp))
+                        Spacer(modifier = Modifier.height(12.dp))
 
                         if (state.totalBytes > 0) {
                             val mbDownloaded = state.bytesDownloaded / (1024f * 1024f)
@@ -421,28 +450,42 @@ fun AboutScreen(
                                 style = HIGTheme.typography.caption1,
                                 color = colors.secondaryLabel
                             )
+                        } else {
+                            Text(
+                                text = "Mengunduh file paket...",
+                                style = HIGTheme.typography.caption1,
+                                color = colors.secondaryLabel
+                            )
                         }
                     }
 
                     is UpdateDownloadState.Extracting -> {
+                        Text(
+                            text = "Memproses Paket",
+                            style = HIGTheme.typography.title2,
+                            color = colors.primaryLabel
+                        )
+
+                        Spacer(modifier = Modifier.height(16.dp))
+
                         CircularProgressIndicator(
                             modifier = Modifier.size(36.dp),
                             color = colors.accent
                         )
 
-                        Spacer(modifier = Modifier.height(12.dp))
+                        Spacer(modifier = Modifier.height(16.dp))
 
                         Text(
                             text = strings.extractingUpdate,
                             style = HIGTheme.typography.subhead,
-                            color = colors.primaryLabel
+                            color = colors.secondaryLabel
                         )
                     }
 
                     is UpdateDownloadState.ReadyToInstall -> {
                         Box(
                             modifier = Modifier
-                                .size(48.dp)
+                                .size(52.dp)
                                 .clip(CircleShape)
                                 .background(colors.success.copy(alpha = 0.15f)),
                             contentAlignment = Alignment.Center
@@ -454,34 +497,74 @@ fun AboutScreen(
 
                         Text(
                             text = strings.updateReadyTitle,
-                            style = HIGTheme.typography.headline,
+                            style = HIGTheme.typography.title2,
                             color = colors.primaryLabel
                         )
 
-                        Spacer(modifier = Modifier.height(16.dp))
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        Text(
+                            text = strings.updateReadyDesc,
+                            style = HIGTheme.typography.body,
+                            color = colors.secondaryLabel,
+                            lineHeight = 20.sp
+                        )
+
+                        Spacer(modifier = Modifier.height(20.dp))
 
                         HIGButton(
                             text = strings.installUpdateBtn,
                             style = HIGButtonStyle.FILLED,
                             modifier = Modifier.fillMaxWidth(),
                             onClick = {
-                                gitHubRepository.launchPackageInstaller(context, state.apkFile)
+                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && !context.packageManager.canRequestPackageInstalls()) {
+                                    showInstallPermissionDialog = true
+                                } else {
+                                    gitHubRepository.launchPackageInstaller(context, state.apkFile)
+                                }
                             }
+                        )
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        HIGButton(
+                            text = strings.close,
+                            style = HIGButtonStyle.TINTED,
+                            modifier = Modifier.fillMaxWidth(),
+                            onClick = { showUpdateModal = false }
                         )
                     }
 
                     is UpdateDownloadState.Error -> {
                         Text(
-                            text = state.message,
-                            style = HIGTheme.typography.footnote,
+                            text = "Gagal Mengunduh Pembaruan",
+                            style = HIGTheme.typography.title2,
                             color = colors.destructive
                         )
 
-                        Spacer(modifier = Modifier.height(16.dp))
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        Text(
+                            text = state.message,
+                            style = HIGTheme.typography.body,
+                            color = colors.primaryLabel,
+                            lineHeight = 20.sp
+                        )
+
+                        Spacer(modifier = Modifier.height(20.dp))
+
+                        HIGButton(
+                            text = "Coba Lagi",
+                            style = HIGButtonStyle.FILLED,
+                            modifier = Modifier.fillMaxWidth(),
+                            onClick = { downloadState = UpdateDownloadState.Idle }
+                        )
+
+                        Spacer(modifier = Modifier.height(8.dp))
 
                         HIGButton(
                             text = strings.openGitHubActionsBtn,
-                            style = HIGButtonStyle.FILLED,
+                            style = HIGButtonStyle.TINTED,
                             modifier = Modifier.fillMaxWidth(),
                             onClick = {
                                 gitHubRepository.openGitHubActions(context, state.fallbackUrl)
@@ -493,7 +576,7 @@ fun AboutScreen(
 
                         HIGButton(
                             text = strings.close,
-                            style = HIGButtonStyle.TINTED,
+                            style = HIGButtonStyle.PLAIN,
                             modifier = Modifier.fillMaxWidth(),
                             onClick = { showUpdateModal = false }
                         )
@@ -552,6 +635,53 @@ fun AboutScreen(
             HIGButton(
                 text = strings.close,
                 onClick = { showPrivacyDialog = false },
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+    }
+
+    // Install Unknown Apps Permission Dialog
+    HIGDialog(
+        show = showInstallPermissionDialog,
+        onDismissRequest = { showInstallPermissionDialog = false }
+    ) {
+        Column {
+            Text(
+                text = strings.installPermissionModalTitle,
+                style = HIGTheme.typography.title2,
+                color = colors.primaryLabel
+            )
+            Spacer(modifier = Modifier.height(10.dp))
+            Text(
+                text = strings.installPermissionModalDesc,
+                style = HIGTheme.typography.footnote,
+                color = colors.secondaryLabel,
+                lineHeight = 19.sp
+            )
+            Spacer(modifier = Modifier.height(20.dp))
+            HIGButton(
+                text = strings.openSettingsBtn,
+                onClick = {
+                    showInstallPermissionDialog = false
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        try {
+                            val intent = Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES).apply {
+                                data = Uri.parse("package:${context.packageName}")
+                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            }
+                            context.startActivity(intent)
+                        } catch (e: Exception) {
+                            // Fallback
+                        }
+                    }
+                },
+                modifier = Modifier.fillMaxWidth()
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            HIGButton(
+                text = strings.cancel,
+                style = HIGButtonStyle.TINTED,
+                onClick = { showInstallPermissionDialog = false },
                 modifier = Modifier.fillMaxWidth()
             )
         }

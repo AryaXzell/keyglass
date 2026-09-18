@@ -190,7 +190,7 @@ fun DashboardScreen(
         ) {
             // 1. Battery Optimization Banner (PRD §7.14)
             AnimatedVisibility(
-                visible = !isIgnoringBattery && settings.batteryReminderDismissCount < 3,
+                visible = !isIgnoringBattery,
                 enter = fadeIn() + expandVertically(),
                 exit = fadeOut() + shrinkVertically()
             ) {
