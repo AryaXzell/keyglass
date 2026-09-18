@@ -1,0 +1,7 @@
+{
+  "name": "KeyGlass",
+  "description": "iOS-inspired custom keyboard and HIG companion app for Android with glass blur styling and classical predictive text engine.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<data-extraction-rules>
+    <cloud-backup>
+        <include domain="file" path="datastore" />
+        <include domain="database" path="keyglass_personal_dict.db" />
+    </cloud-backup>
+    <device-transfer>
+        <include domain="file" path="datastore" />
+        <include domain="database" path="keyglass_personal_dict.db" />
+    </device-transfer>
+</data-extraction-rules>
+

@@ -1,0 +1,169 @@
+name: KeyGlass Nightly Build
+
+on:
+  push:
+    branches:
+      - main
+      - master
+      - dev
+      - nightly
+    tags-ignore:
+      - '**'
+  pull_request:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+    inputs:
+      create_release:
+        description: 'Publish as GitHub Nightly Release tag'
+        required: false
+        type: boolean
+        default: true
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-nightly:
+    name: Build Multi-Architecture APKs
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Java Development Kit (JDK 17)
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+          cache: 'gradle'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Grant Execute Permission to Gradle
+        run: |
+          if [ -f "./gradlew" ]; then
+            chmod +x ./gradlew
+          fi
+
+      - name: Prepare Signing Key
+        run: |
+          if [ -f "debug.keystore.base64" ]; then
+            base64 -d debug.keystore.base64 > debug.keystore
+          elif [ ! -f "debug.keystore" ]; then
+            keytool -genkey -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
+          fi
+
+      - name: Build All Architecture (Universal Complete) APK
+        env:
+          GITHUB_RUN_NUMBER: ${{ github.run_number }}
+        run: |
+          gradle :app:assembleDebug -PversionCode=${{ github.run_number }} --stacktrace
+          mkdir -p build-artifacts
+          UNIVERSAL_APK=$(find app/build/outputs/apk/debug/ -name "*.apk" | head -n 1)
+          cp "$UNIVERSAL_APK" build-artifacts/KeyGlass-all-arch-nightly.apk
+
+      - name: Build ABI Split APKs (64-bit, 32-bit, Universal ARM)
+        env:
+          GITHUB_RUN_NUMBER: ${{ github.run_number }}
+        run: |
+          gradle :app:assembleDebug -PenableSplits=true -PversionCode=${{ github.run_number }} --stacktrace
+          
+          # Find generated split APKs
+          ARM64_APK=$(find app/build/outputs/apk/debug/ -name "*arm64-v8a*.apk" | head -n 1)
+          ARMV7_APK=$(find app/build/outputs/apk/debug/ -name "*armeabi-v7a*.apk" | head -n 1)
+          SPLIT_UNIVERSAL=$(find app/build/outputs/apk/debug/ -name "*universal*.apk" | head -n 1)
+
+          if [ -f "$ARM64_APK" ]; then
+            cp "$ARM64_APK" build-artifacts/KeyGlass-arm64-v8a-nightly.apk
+          else
+            cp build-artifacts/KeyGlass-all-arch-nightly.apk build-artifacts/KeyGlass-arm64-v8a-nightly.apk
+          fi
+
+          if [ -f "$ARMV7_APK" ]; then
+            cp "$ARMV7_APK" build-artifacts/KeyGlass-armeabi-v7a-nightly.apk
+          else
+            cp build-artifacts/KeyGlass-all-arch-nightly.apk build-artifacts/KeyGlass-armeabi-v7a-nightly.apk
+          fi
+
+          if [ -f "$SPLIT_UNIVERSAL" ]; then
+            cp "$SPLIT_UNIVERSAL" build-artifacts/KeyGlass-universal-arm-nightly.apk
+          else
+            cp build-artifacts/KeyGlass-all-arch-nightly.apk build-artifacts/KeyGlass-universal-arm-nightly.apk
+          fi
+
+      - name: Generate Checksums & Build Metadata
+        run: |
+          cd build-artifacts
+          sha256sum *.apk > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      # Artifact 1: 64-bit ARM
+      - name: Upload 64-bit (arm64-v8a) Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: keyglass-arm64-v8a
+          path: build-artifacts/KeyGlass-arm64-v8a-nightly.apk
+          if-no-files-found: error
+          retention-days: 14
+
+      # Artifact 2: 32-bit ARM
+      - name: Upload 32-bit (armeabi-v7a) Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: keyglass-armeabi-v7a
+          path: build-artifacts/KeyGlass-armeabi-v7a-nightly.apk
+          if-no-files-found: error
+          retention-days: 14
+
+      # Artifact 3: Universal ARM (arm64 & armeabi-v7a)
+      - name: Upload Universal ARM (arm64 & 32-bit) Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: keyglass-universal-arm
+          path: build-artifacts/KeyGlass-universal-arm-nightly.apk
+          if-no-files-found: error
+          retention-days: 14
+
+      # Artifact 4: All Architectures (All ABIs: arm64, armv7, x86, x86_64)
+      - name: Upload All Architectures Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: keyglass-all-architectures
+          path: build-artifacts/KeyGlass-all-arch-nightly.apk
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Publish or Update Nightly Release
+        if: (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || github.event.inputs.create_release == 'true') && !github.event.pull_request
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: nightly
+          name: 'KeyGlass Nightly Pre-Release'
+          body: |
+            Automated Nightly build generated from commit ${{ github.sha }}.
+            
+            ### Artifacts Included:
+            - **KeyGlass-arm64-v8a-nightly.apk**: 64-bit ARM devices (Modern smartphones)
+            - **KeyGlass-armeabi-v7a-nightly.apk**: 32-bit ARM legacy devices
+            - **KeyGlass-universal-arm-nightly.apk**: Universal ARM (arm64-v8a + armeabi-v7a)
+            - **KeyGlass-all-arch-nightly.apk**: Complete universal package (ARM + x86 / x86_64 Emulators)
+            
+            SHA256 Checksums:
+            ```
+            ${{ hashFiles('build-artifacts/*.apk') }}
+            ```
+          prerelease: true
+          files: |
+            build-artifacts/*.apk
+            build-artifacts/SHA256SUMS.txt
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
